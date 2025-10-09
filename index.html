@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en" ng-app="app">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Checkout - Fashion Shop</title>
+  <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.6.9/angular.min.js"></script>
+  <style>
+    body { font-family: Arial; max-width: 600px; margin: 20px auto; }
+    label { display: block; margin-top: 15px; }
+    input { width: 100%; padding: 8px; margin-top: 5px; }
+    button { margin: 5px 5px 5px 0; padding: 8px 12px; cursor: pointer; border: none; border-radius: 3px; }
+    .btn { background: #007bff; color: #fff; }
+    .btn:hover { background: #0056b3; }
+    .btn-danger { background: #dc3545; color: #fff; }
+    .btn-update { background: #28a745; color: #fff; }
+    .order { border: 1px solid #ddd; padding: 10px; margin-top: 10px; border-radius: 5px; }
+  </style>
+</head>
+<body ng-controller="ctrl">
+
+  <header>
+    <h1>Fashion Shop</h1>
+    <nav>
+      <a href="#">Home</a> | <a href="#">Cart</a>
+    </nav>
+  </header>
+
+  <main>
+    <h2>Checkout</h2>
+    <form name="checkoutForm" novalidate>
+      <label>Full Name:</label>
+      <input type="text" ng-model="name" required />
+      <label>Shipping Address:</label>
+      <input type="text" ng-model="address" required />
+      <label>Payment Info:</label>
+      <input type="text" ng-model="payment" required />
+      <button type="button" class="btn" ng-click="submitOrder()">Place Order</button>
+    </form>
+
+    <h2>All Orders</h2>
+    <div ng-if="orders.length === 0">No orders yet.</div>
+    <div class="order" ng-repeat="o in orders">
+      <strong>{{o.name | uppercase}}</strong><br>
+      Address: {{o.address}}<br>
+      Payment: {{o.payment | maskPayment}}<br>
+      <button class="btn-update" ng-click="editOrder(o)">Edit</button>
+      <button class="btn-danger" ng-click="deleteOrder(o._id)">Delete</button>
+    </div>
+
+  </main>
+
+  <footer>
+    <p>© 2025 Fashion Shop</p>
+  </footer>
+
+  <script>
+    const app = angular.module('app', []);
+
+    // ---- Service ----
+    app.service('OrderService', function($http) {
+      const API = "http://localhost:5000/api/orders";
+      this.getOrders = () => $http.get(API);
+      this.createOrder = (order) => $http.post(API, order);
+      this.updateOrder = (id, order) => $http.put(`${API}/${id}`, order);
+      this.deleteOrder = (id) => $http.delete(`${API}/${id}`);
+    });
+
+    // ---- Factory ----
+    app.factory('UtilsFactory', function() {
+      return {
+        validateOrder: function(order) {
+          return order.name && order.address && order.payment;
+        }
+      };
+    });
+
+    // ---- Filter ----
+    app.filter('maskPayment', function() {
+      return function(input) {
+        if(!input) return '';
+        return '****' + input.slice(-4); // show last 4 digits only
+      };
+    });
+
+   
+
+    // ---- Controller ----
+    app.controller('ctrl', function($scope, OrderService, UtilsFactory) {
+      $scope.orders = [];
+      $scope.editingId = null;
+
+      $scope.loadOrders = function() {
+        OrderService.getOrders().then(res => $scope.orders = res.data);
+      };
+
+      $scope.submitOrder = function() {
+        const newOrder = { name: $scope.name, address: $scope.address, payment: $scope.payment };
+        if(!UtilsFactory.validateOrder(newOrder)) return alert("Fill all fields!");
+
+        if($scope.editingId){
+          OrderService.updateOrder($scope.editingId, newOrder).then(() => { $scope.loadOrders(); $scope.resetForm(); });
+        } else {
+          OrderService.createOrder(newOrder).then(() => { $scope.loadOrders(); $scope.resetForm(); });
+        }
+      };
+
+      $scope.editOrder = function(order) {
+        $scope.editingId = order._id;
+        $scope.name = order.name;
+        $scope.address = order.address;
+        $scope.payment = order.payment;
+      };
+
+      $scope.deleteOrder = function(id){
+        if(confirm("Delete this order?")) OrderService.deleteOrder(id).then(() => $scope.loadOrders());
+      };
+
+      $scope.resetForm = function(){
+        $scope.editingId = null;
+        $scope.name = $scope.address = $scope.payment = "";
+      };
+
+      $scope.loadOrders();
+    });
+  </script>
+</body>
+</html>
