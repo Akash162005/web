@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en" ng-app="restaurantApp">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Food Restaurant</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.8.3/angular.min.js"></script>
+</head>
+<body ng-controller="MenuController as menu">
+
+  <div class="container">
+    <h2>Food Menu</h2>
+
+    <div class="customer-info">
+      <label>Name: <input type="text" ng-model="menu.customerName" required></label>
+      <label>Phone: <input type="text" ng-model="menu.phone" required></label>
+    </div>
+
+    <div class="menu-items">
+      <div class="item" ng-repeat="item in menu.foodItems">
+        <h3>{{item.name}} - ${{item.price}}</h3>
+        <button ng-click="menu.addToCart(item)">Add to Cart</button>
+      </div>
+    </div>
+
+    <h3>🛒 Cart</h3>
+    <ul>
+      <li ng-repeat="item in menu.cart">{{item.name}} - ${{item.price}}</li>
+    </ul>
+    <p>Total: ${{menu.totalAmount}}</p>
+    <button ng-click="menu.placeOrder()" ng-disabled="menu.cart.length === 0">Place Order</button>
+  </div>
+<script>
+    angular.module('restaurantApp', [])
+.controller('MenuController', ['$http', function($http){
+  const vm = this;
+
+  vm.customerName = '';
+  vm.phone = '';
+  vm.cart = [];
+  vm.totalAmount = 0;
+
+  vm.foodItems = [
+    { name: "Burger", price: 5 },
+    { name: "Pizza", price: 8 },
+    { name: "Pasta", price: 7 },
+    { name: "Sandwich", price: 4 },
+    { name: "Salad", price: 6 }
+  ];
+
+  vm.addToCart = function(item){
+    vm.cart.push(item);
+    vm.totalAmount += item.price;
+  };
+
+  vm.placeOrder = function(){
+    const orderData = {
+      customerName: vm.customerName,
+      phone: vm.phone,
+      items: vm.cart,
+      totalAmount: vm.totalAmount
+    };
+
+    $http.post('http://localhost:5000/order', orderData)
+      .then(res => {
+        alert(res.data.message);
+        vm.cart = [];
+        vm.totalAmount = 0;
+        vm.customerName = '';
+        vm.phone = '';
+      })
+      .catch(err => console.error(err));
+  };
+}]);
+
+</script>
+</body>
+</html>
