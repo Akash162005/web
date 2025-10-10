@@ -6,19 +6,18 @@ const bodyParser = require("body-parser");
 const app = express();
 const PORT = 3000;
 
-// Middleware
+
 app.use(cors());
 app.use(bodyParser.json());
 
-// MongoDB connection
+
 mongoose.connect("mongodb://127.0.0.1:27017/fashionShop", {
   useNewUrlParser: true,
   useUnifiedTopology: true
 })
-.then(() => console.log("✅ MongoDB connected"))
-.catch(err => console.error("❌ MongoDB connection error:", err));
+.then(() => console.log("MongoDB connected"))
+.catch(err => console.error(" MongoDB connection error:", err));
 
-// Schema & Model
 const orderSchema = new mongoose.Schema({
   name: String,
   address: String,
@@ -27,11 +26,7 @@ const orderSchema = new mongoose.Schema({
 
 const Order = mongoose.model("Order", orderSchema);
 
-//
-// CRUD Routes
-//
 
-// 👉 Create Order
 app.post("/api/orders", async (req, res) => {
   try {
     const order = new Order(req.body);
@@ -42,7 +37,7 @@ app.post("/api/orders", async (req, res) => {
   }
 });
 
-// 👉 Read All Orders
+
 app.get("/api/orders", async (req, res) => {
   try {
     const orders = await Order.find();
@@ -52,8 +47,7 @@ app.get("/api/orders", async (req, res) => {
   }
 });
 
-// 👉 Read Single Order
-/*app.get("/api/orders/:id", async (req, res) => {
+app.get("/api/orders/:id", async (req, res) => {
   try {
     const order = await Order.findById(req.params.id);
     if (!order) return res.status(404).json({ message: "Order not found" });
@@ -61,9 +55,8 @@ app.get("/api/orders", async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
-});*/
+});
 
-// 👉 Update Order
 app.put("/api/orders/:id", async (req, res) => {
   try {
     const order = await Order.findByIdAndUpdate(req.params.id, req.body, { new: true });
@@ -74,7 +67,6 @@ app.put("/api/orders/:id", async (req, res) => {
   }
 });
 
-// 👉 Delete Order
 app.delete("/api/orders/:id", async (req, res) => {
   try {
     const order = await Order.findByIdAndDelete(req.params.id);
@@ -85,5 +77,6 @@ app.delete("/api/orders/:id", async (req, res) => {
   }
 });
 
-// Start Server
+
 app.listen(PORT, () => console.log(`🚀 Server running on http://localhost:${PORT}`));
+
