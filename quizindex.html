@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en" ng-app="quizApp">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quiz App</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.8.3/angular.min.js"></script>
+  <style>
+    body {
+  font-family: Arial;
+  background: #f4f4f4;
+  display: flex;
+  justify-content: center;
+  padding: 30px;
+}
+
+.quiz-container, .result-container {
+  background: #fff;
+  padding: 20px;
+  border-radius: 10px;
+  width: 600px;
+  box-shadow: 0 0 10px rgba(0,0,0,0.1);
+}
+
+h2 { text-align: center; }
+.timer { text-align: right; color: #007bff; font-weight: bold; }
+.correct { color: green; }
+.wrong { color: red; }
+.submit-btn {
+  background: #007bff; color: white;
+  border: none; padding: 10px 15px;
+  cursor: pointer; border-radius: 5px;
+  margin: 20px auto; display: block;
+}
+
+  </style>
+</head>
+<body ng-controller="QuizController as quiz">
+
+  <div class="quiz-container" ng-if="!quiz.isSubmitted">
+    <h2>Simple Quiz App</h2>
+    <label>Name: <input type="text" ng-model="quiz.username" required></label>
+    <p class="timer">Time Left: {{quiz.timeLeft}} seconds</p>
+
+    <form ng-submit="quiz.submitQuiz()">
+      <div class="question" ng-repeat="q in quiz.questions">
+        <h3>Q{{$index + 1}}. {{q.question}}</h3>
+        <div class="options">
+          <label ng-repeat="option in q.options">
+            <input type="radio" ng-model="q.userAnswer" ng-value="option" required>
+            {{option}}
+          </label>
+        </div>
+      </div>
+      <button type="submit" class="submit-btn">Submit Quiz</button>
+    </form>
+  </div>
+
+  <div class="result-container" ng-if="quiz.isSubmitted">
+    <h2>Quiz Completed!</h2>
+    <p>{{quiz.username}}, your Score: {{quiz.score}} / {{quiz.questions.length}}</p>
+    <div class="answers">
+      <div ng-repeat="q in quiz.questions">
+        <h3>Q{{$index + 1}}. {{q.question}}</h3>
+        <p>Your Answer: <span ng-class="{'correct': q.userAnswer === q.answer, 'wrong': q.userAnswer !== q.answer}">
+          {{q.userAnswer || 'Not answered'}}
+        </span></p>
+        <p>Correct Answer: <span class="correct">{{q.answer}}</span></p>
+      </div>
+    </div>
+  </div>
+<script>
+    angular.module('quizApp', [])
+.controller('QuizController', ['$interval', '$http', function($interval, $http) {
+  const vm = this;
+
+  vm.username = '';
+  vm.questions = [
+    { question: "What does HTML stand for?", options: ["Hyper Text Markup Language", "Home Tool Markup Language", "Hyperlink Mark Language"], answer: "Hyper Text Markup Language" },
+    { question: "Which tag is used for JavaScript?", options: ["<js>", "<script>", "<javascript>"], answer: "<script>" },
+    { question: "What does CSS stand for?", options: ["Creative Style Sheets", "Cascading Style Sheets", "Computer Style Sheets"], answer: "Cascading Style Sheets" },
+    { question: "Which symbol is for comments in JS?", options: ["#", "//", "/* */"], answer: "//" },
+    { question: "JS files have what extension?", options: [".js", ".java", ".jsx"], answer: ".js" }
+  ];
+
+  vm.timeLeft = 60;
+  vm.isSubmitted = false;
+  vm.score = 0;
+
+  const timer = $interval(() => {
+    if (vm.timeLeft > 0) {
+      vm.timeLeft--;
+    } else {
+      vm.submitQuiz();
+    }
+  }, 1000);
+
+  vm.submitQuiz = function() {
+    if (vm.isSubmitted) return;
+    $interval.cancel(timer);
+    vm.isSubmitted = true;
+
+    vm.questions.forEach(q => {
+      if (q.userAnswer === q.answer) vm.score++;
+    });
+
+    const data = {
+      name: vm.username,
+      answers: vm.questions.map(q => ({ question: q.question, userAnswer: q.userAnswer, correctAnswer: q.answer })),
+      score: vm.score
+    };
+
+    $http.post('http://localhost:5000/submit', data)
+      .then(res => console.log(res.data))
+      .catch(err => console.error(err));
+  };
+}]);
+</script>
+
+</body>
+</html>
