@@ -3,69 +3,74 @@
 <head>
   <meta charset="UTF-8">
   <title>MongoDB Chat</title>
-  <link rel="stylesheet" href="style.css">
   <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.8.3/angular.min.js"></script>
   <script src="/socket.io/socket.io.js"></script>
   <style>
     body {
-  font-family: Arial, sans-serif;
-  background: #f4f4f4;
-  display: flex;
-  justify-content: center;
-  padding-top: 40px;
-}
+      font-family: Arial, sans-serif;
+      background: #f4f4f4;
+      display: flex;
+      justify-content: center;
+      padding-top: 40px;
+    }
 
-.chat-container {
-  background: white;
-  width: 400px;
-  border-radius: 8px;
-  padding: 20px;
-  box-shadow: 0 3px 10px rgba(0,0,0,0.1);
-}
+    .chat-container {
+      background: white;
+      width: 400px;
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+    }
 
-.chat-box {
-  height: 300px;
-  overflow-y: scroll;
-  border: 1px solid #ddd;
-  padding: 10px;
-  margin-bottom: 10px;
-}
+    .chat-box {
+      height: 300px;
+      overflow-y: scroll;
+      border: 1px solid #ddd;
+      padding: 10px;
+      margin-bottom: 10px;
+    }
 
-input {
-  width: 100%;
-  padding: 8px;
-  margin: 4px 0;
-}
+    input {
+      width: 100%;
+      padding: 8px;
+      margin: 4px 0;
+    }
 
-button {
-  width: 100%;
-  padding: 8px;
-  background: #007bff;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-}
+    button {
+      width: 100%;
+      padding: 8px;
+      background: #007bff;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
 
-button:hover {
-  background: #0056b3;
-}
+    button:hover {
+      background: #0056b3;
+    }
 
-.time {
-  font-size: 12px;
-  color: gray;
-  margin-left: 5px;
-}
+    .time {
+      font-size: 12px;
+      color: gray;
+      margin-left: 5px;
+    }
 
+    .my-message {
+      background-color: #d1ffd1;
+      padding: 2px 5px;
+      border-radius: 4px;
+    }
   </style>
 </head>
 <body ng-controller="ChatController as chat">
+
   <div class="chat-container">
     <h1>MongoDB Chat</h1>
 
     <div class="chat-box">
-      <div ng-repeat="msg in chat.messages">
-        <strong>{{msg.name}}:</strong> {{msg.text}}
+      <div ng-repeat="msg in chat.messages | reverse">
+        <strong ng-class="{'my-message': msg.name === chat.name}">{{msg.name}}:</strong> {{msg.text}}
         <small class="time">({{msg.time | date:'shortTime'}})</small>
       </div>
     </div>
@@ -76,40 +81,59 @@ button:hover {
       <button type="submit">Send</button>
     </form>
   </div>
+
   <script>
     angular.module("chatApp", [])
-.controller("ChatController", function($scope, $http) {
-  const socket = io();
-  const vm = this;
-  vm.messages = [];
-  vm.name = "";
-  vm.text = "";
 
+    .service("SocketService", function($rootScope) {
+      const socket = io();
+      return {
+        on: function(eventName, callback) {
+          socket.on(eventName, function() {
+            const args = arguments;
+            $rootScope.$apply(() => callback.apply(socket, args));
+          });
+        },
+        emit: function(eventName, data) {
+          socket.emit(eventName, data);
+        }
+      };
+    })
+    .factory("ChatFactory", function($http) {
+      return {
+        getMessages: function() {
+          return $http.get("/api/messages");
+        }
+      };
+    })
 
-  $http.get("/api/messages").then(res => {
-    vm.messages = res.data;
-  });
-
-  socket.on("history", function(data) {
-    vm.messages = data;
-    $scope.$apply();
-  });
-
-  
-  socket.on("chat message", function(msg) {
-    vm.messages.push(msg);
-    $scope.$apply();
-  });
-
-  
-  vm.sendMessage = function() {
-    if (vm.name && vm.text) {
-      socket.emit("chat message", { name: vm.name, text: vm.text });
+    .controller("ChatController", function(SocketService, ChatFactory) {
+      const vm = this;
+      vm.messages = [];
+      vm.name = "";
       vm.text = "";
-    }
-  };
-});
 
-    </script>
+      ChatFactory.getMessages().then(res => vm.messages = res.data);
+
+      SocketService.on("chat message", msg => vm.messages.push(msg));
+      SocketService.on("history", data => vm.messages = data);
+
+      vm.sendMessage = function() {
+        if (vm.name && vm.text) {
+          const message = { name: vm.name, text: vm.text, time: new Date() };
+          SocketService.emit("chat message", message);
+          vm.text = "";
+        }
+      };
+    })
+
+    // ===== Reverse Filter =====
+    .filter("reverse", function() {
+      return function(items) {
+        return items.slice().reverse();
+      };
+    });
+  </script>
+
 </body>
 </html>
