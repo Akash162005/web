@@ -1,46 +1,55 @@
 const express = require('express');
 const mongoose = require('mongoose');
+const bodyParser = require('body-parser');
 const cors = require('cors');
 
 const app = express();
+const PORT = 5000;
+
 app.use(cors());
-app.use(express.json());
+app.use(bodyParser.json());
 
 mongoose.connect('mongodb://127.0.0.1:27017/quizdb', {
   useNewUrlParser: true,
   useUnifiedTopology: true
 })
-.then(() => console.log('MongoDB connected'))
-.catch(err => console.log(' MongoDB connection error:', err));
+.then(() => console.log("MongoDB connected"))
+.catch(err => console.error(err));
 
-const resultSchema = new mongoose.Schema({
-  name: String,
-  answers: Array,
-  score: Number,
-  date: { type: Date, default: Date.now }
+
+const answerSchema = new mongoose.Schema({
+  question: String,
+  userAnswer: String,
+  correctAnswer: String
 });
-const Result = mongoose.model('Result', resultSchema);
 
+const quizSchema = new mongoose.Schema({
+  name: String,
+  score: Number,
+  answers: [answerSchema],
+  submittedAt: { type: Date, default: Date.now }
+});
+
+const Quiz = mongoose.model('Quiz', quizSchema);
 
 app.post('/submit', async (req, res) => {
   try {
-    const { name, answers, score } = req.body;
-    const newResult = new Result({ name, answers, score });
-    await newResult.save();
-    res.json({ message: 'Result saved successfully!' });
-  } catch (error) {
-    res.status(500).json({ message: 'Error saving result', error });
+    const quizData = new Quiz(req.body);
+    await quizData.save();
+    res.status(200).json({ message: 'Quiz submitted successfully!' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
-app.get('/results', async (req, res) => {
+
+app.get('/submissions', async (req, res) => {
   try {
-    const results = await Result.find();
-    res.json(results);
-  } catch (error) {
-    res.status(500).json({ message: 'Error fetching results', error });
+    const submissions = await Quiz.find().sort({ submittedAt: -1 });
+    res.json(submissions);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
-const PORT = 5000;
-app.listen(PORT, () => console.log(`🚀 Server running on http://localhost:${PORT}`));
+app.listen(PORT, () => console.log(`Server running at http://localhost:${PORT}`));
