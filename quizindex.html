@@ -4,36 +4,16 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Quiz App</title>
-  <link rel="stylesheet" href="style.css">
   <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.8.3/angular.min.js"></script>
   <style>
-    body {
-  font-family: Arial;
-  background: #f4f4f4;
-  display: flex;
-  justify-content: center;
-  padding: 30px;
-}
-
-.quiz-container, .result-container {
-  background: #fff;
-  padding: 20px;
-  border-radius: 10px;
-  width: 600px;
-  box-shadow: 0 0 10px rgba(0,0,0,0.1);
-}
-
-h2 { text-align: center; }
-.timer { text-align: right; color: #007bff; font-weight: bold; }
-.correct { color: green; }
-.wrong { color: red; }
-.submit-btn {
-  background: #007bff; color: white;
-  border: none; padding: 10px 15px;
-  cursor: pointer; border-radius: 5px;
-  margin: 20px auto; display: block;
-}
-
+    body { font-family: Arial; background: #f4f4f4; display: flex; justify-content: center; padding: 30px; }
+    .quiz-container, .result-container { background: #fff; padding: 20px; border-radius: 10px; width: 600px; box-shadow: 0 0 10px rgba(0,0,0,0.1);}
+    h2 { text-align: center; }
+    .timer { text-align: right; color: #007bff; font-weight: bold; }
+    .correct { color: green; }
+    .wrong { color: red; }
+    .submit-btn { background: #007bff; color: white; border: none; padding: 10px 15px; cursor: pointer; border-radius: 5px; margin: 20px auto; display: block;}
+    .question { margin-bottom: 15px; }
   </style>
 </head>
 <body ng-controller="QuizController as quiz">
@@ -44,15 +24,7 @@ h2 { text-align: center; }
     <p class="timer">Time Left: {{quiz.timeLeft}} seconds</p>
 
     <form ng-submit="quiz.submitQuiz()">
-      <div class="question" ng-repeat="q in quiz.questions">
-        <h3>Q{{$index + 1}}. {{q.question}}</h3>
-        <div class="options">
-          <label ng-repeat="option in q.options">
-            <input type="radio" ng-model="q.userAnswer" ng-value="option" required>
-            {{option}}
-          </label>
-        </div>
-      </div>
+      <quiz-question ng-repeat="q in quiz.questions" question="q"></quiz-question>
       <button type="submit" class="submit-btn">Submit Quiz</button>
     </form>
   </div>
@@ -64,58 +36,100 @@ h2 { text-align: center; }
       <div ng-repeat="q in quiz.questions">
         <h3>Q{{$index + 1}}. {{q.question}}</h3>
         <p>Your Answer: <span ng-class="{'correct': q.userAnswer === q.answer, 'wrong': q.userAnswer !== q.answer}">
-          {{q.userAnswer || 'Not answered'}}
+          {{q.userAnswer | defaultText:'Not answered'}}
         </span></p>
         <p>Correct Answer: <span class="correct">{{q.answer}}</span></p>
       </div>
     </div>
   </div>
+
 <script>
-    angular.module('quizApp', [])
-.controller('QuizController', ['$interval', '$http', function($interval, $http) {
-  const vm = this;
+angular.module('quizApp', [])
 
-  vm.username = '';
-  vm.questions = [
-    { question: "What does HTML stand for?", options: ["Hyper Text Markup Language", "Home Tool Markup Language", "Hyperlink Mark Language"], answer: "Hyper Text Markup Language" },
-    { question: "Which tag is used for JavaScript?", options: ["<js>", "<script>", "<javascript>"], answer: "<script>" },
-    { question: "What does CSS stand for?", options: ["Creative Style Sheets", "Cascading Style Sheets", "Computer Style Sheets"], answer: "Cascading Style Sheets" },
-    { question: "Which symbol is for comments in JS?", options: ["#", "//", "/* */"], answer: "//" },
-    { question: "JS files have what extension?", options: [".js", ".java", ".jsx"], answer: ".js" }
-  ];
 
-  vm.timeLeft = 60;
-  vm.isSubmitted = false;
-  vm.score = 0;
+  .filter('defaultText', function() {
+    return function(input, defaultValue) {
+      return input ? input : defaultValue;
+    };
+  })
 
-  const timer = $interval(() => {
-    if (vm.timeLeft > 0) {
-      vm.timeLeft--;
-    } else {
+  .service('TimerService', ['$interval', function($interval) {
+    this.start = function(duration, tickCallback, endCallback) {
+      let timeLeft = duration;
+      const timer = $interval(() => {
+        timeLeft--;
+        tickCallback(timeLeft);
+        if (timeLeft <= 0) {
+          $interval.cancel(timer);
+          endCallback();
+        }
+      }, 1000);
+      return timer;
+    };
+  }])
+
+  .factory('QuizFactory', ['$http', function($http) {
+    return {
+      submitQuiz: function(data) {
+        return $http.post('http://localhost:5000/submit', data);
+      }
+    };
+  }])
+
+  .directive('quizQuestion', function() {
+    return {
+      restrict: 'E',
+      scope: { question: '=' },
+      template: `
+        <div class="question">
+          <h3>{{question.question}}</h3>
+          <div class="options">
+            <label ng-repeat="option in question.options">
+              <input type="radio" ng-model="question.userAnswer" ng-value="option" required> {{option}}
+            </label>
+          </div>
+        </div>
+      `
+    };
+  })
+
+  .controller('QuizController', ['TimerService', 'QuizFactory', function(TimerService, QuizFactory) {
+    const vm = this;
+    vm.username = '';
+    vm.isSubmitted = false;
+    vm.score = 0;
+    vm.timeLeft = 60;
+
+    vm.questions = [
+      { question: "What does HTML stand for?", options: ["Hyper Text Markup Language", "Home Tool Markup Language", "Hyperlink Mark Language"], answer: "Hyper Text Markup Language" },
+      { question: "Which tag is used for JavaScript?", options: ["<js>", "<script>", "<javascript>"], answer: "<script>" },
+      { question: "What does CSS stand for?", options: ["Creative Style Sheets", "Cascading Style Sheets", "Computer Style Sheets"], answer: "Cascading Style Sheets" },
+      { question: "Which symbol is for comments in JS?", options: ["#", "//", "/* */"], answer: "//" },
+      { question: "JS files have what extension?", options: [".js", ".java", ".jsx"], answer: ".js" }
+    ];
+    const timer = TimerService.start(vm.timeLeft, function(time) {
+      vm.timeLeft = time;
+    }, function() {
       vm.submitQuiz();
-    }
-  }, 1000);
-
-  vm.submitQuiz = function() {
-    if (vm.isSubmitted) return;
-    $interval.cancel(timer);
-    vm.isSubmitted = true;
-
-    vm.questions.forEach(q => {
-      if (q.userAnswer === q.answer) vm.score++;
     });
 
-    const data = {
-      name: vm.username,
-      answers: vm.questions.map(q => ({ question: q.question, userAnswer: q.userAnswer, correctAnswer: q.answer })),
-      score: vm.score
+    vm.submitQuiz = function() {
+      if (vm.isSubmitted) return;
+      vm.isSubmitted = true;
+      vm.questions.forEach(q => { if(q.userAnswer === q.answer) vm.score++; });
+
+      const data = {
+        name: vm.username,
+        answers: vm.questions.map(q => ({ question: q.question, userAnswer: q.userAnswer, correctAnswer: q.answer })),
+        score: vm.score
+      };
+
+      QuizFactory.submitQuiz(data)
+        .then(res => console.log(res.data))
+        .catch(err => console.error(err));
     };
 
-    $http.post('http://localhost:5000/submit', data)
-      .then(res => console.log(res.data))
-      .catch(err => console.error(err));
-  };
-}]);
+  }]);
 </script>
 
 </body>
