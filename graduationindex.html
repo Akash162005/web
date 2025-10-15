@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en" ng-app="gradApp">
+<head>
+  <meta charset="utf-8" />
+  <title>Graduation Dashboard</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.8.2/angular.min.js"></script>
+
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f9fafc;
+      color: #333;
+      margin: 20px auto;
+      max-width: 900px;
+    }
+    h1 { text-align: center; color: #2b6cb0; }
+    .card {
+      background: white;
+      padding: 16px;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+    }
+    input, select {
+      padding: 8px;
+      margin: 4px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+    }
+    button {
+      padding: 8px 12px;
+      margin: 4px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .add { background: #38a169; color: #fff; }
+    .edit { background: #3182ce; color: #fff; }
+    .delete { background: #e53e3e; color: #fff; }
+    .reset { background: #718096; color: #fff; }
+    .student-item {
+      display: flex; justify-content: space-between;
+      border-bottom: 1px solid #eee; padding: 8px 0;
+    }
+  </style>
+</head>
+<body ng-controller="MainCtrl as vm">
+
+  <h1>Student Graduation Dashboard</h1>
+  <div class="card">
+    <h3>{{ vm.editing ? 'Edit Student' : 'Add New Student' }}</h3>
+    <form ng-submit="vm.saveStudent()">
+      <input placeholder="Name" ng-model="vm.form.name" required />
+      <input placeholder="Reg No" ng-model="vm.form.regNo" required />
+      <input placeholder="Department" ng-model="vm.form.department" />
+      <input type="number" placeholder="Graduation Year" ng-model="vm.form.gradYear" />
+      <select ng-model="vm.form.status">
+        <option value="Graduated">Graduated</option>
+        <option value="In Progress">In Progress</option>
+      </select>
+      <button type="submit" class="{{ vm.editing ? 'edit' : 'add' }}">
+        {{ vm.editing ? 'Update' : 'Add' }}
+      </button>
+      <button type="button" class="reset" ng-click="vm.resetForm()">Reset</button>
+    </form>
+  </div>
+  
+  <div class="card">
+    <label>Filter by Status: </label>
+    <select ng-model="vm.filterStatus">
+      <option value="">All</option>
+      <option value="Graduated">Graduated</option>
+      <option value="In Progress">In Progress</option>
+    </select>
+  </div>
+
+  <div class="card">
+    <h3>All Students ({{ (vm.students | statusFilter:vm.filterStatus).length }})</h3>
+    <div ng-if="vm.loading">Loading...</div>
+    <div ng-if="!vm.loading && vm.students.length === 0">No students found.</div>
+
+    <div ng-repeat="s in vm.students | statusFilter:vm.filterStatus" class="student-item">
+      <div>
+        <strong>{{ s.name }}</strong> — {{ s.regNo }}
+        <div style="font-size:0.9em; color:#555">
+          {{ s.department || '-' }} • {{ s.gradYear || 'N/A' }} • {{ s.status }}
+        </div>
+      </div>
+      <div>
+        <button class="edit" ng-click="vm.editStudent(s)">Edit</button>
+        <button class="delete" ng-click="vm.deleteStudent(s)">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  angular.module("gradApp", [])
+    .constant("API_URL", "http://localhost:3000/api/students")
+
+    .factory("StudentService", function($http, API_URL) {
+      return {
+        getAll: () => $http.get(API_URL),
+        create: (data) => $http.post(API_URL, data),
+        update: (id, data) => $http.put(API_URL + "/" + id, data),
+        remove: (id) => $http.delete(API_URL + "/" + id)
+      };
+    })
+
+    .filter("statusFilter", function() {
+      return function(students, status) {
+        if (!status) return students;
+        return students.filter(s => s.status === status);
+      };
+    })
+
+
+    .directive("studentCard", function() {
+      return {
+        template: `<div><strong>{{ s.name }}</strong> - {{ s.regNo }}</div>`
+      };
+    })
+
+    .controller("MainCtrl", function(StudentService) {
+      const vm = this;
+      vm.students = [];
+      vm.form = {};
+      vm.editing = false;
+      vm.loading = false;
+
+      vm.loadStudents = function() {
+        vm.loading = true;
+        StudentService.getAll()
+          .then(res => vm.students = res.data)
+          .finally(() => vm.loading = false);
+      };
+
+      vm.saveStudent = function() {
+        if (vm.editing) {
+          StudentService.update(vm.form._id, vm.form)
+            .then(res => {
+              const idx = vm.students.findIndex(s => s._id === res.data._id);
+              if (idx !== -1) vm.students[idx] = res.data;
+              vm.resetForm();
+            });
+        } else {
+          StudentService.create(vm.form)
+            .then(res => {
+              vm.students.unshift(res.data);
+              vm.resetForm();
+            });
+        }
+      };
+
+      vm.editStudent = function(s) {
+        vm.form = angular.copy(s);
+        vm.editing = true;
+      };
+
+      vm.deleteStudent = function(s) {
+        if (!confirm("Delete " + s.name + "?")) return;
+        StudentService.remove(s._id)
+          .then(() => vm.students = vm.students.filter(st => st._id !== s._id));
+      };
+
+      vm.resetForm = function() {
+        vm.form = {};
+        vm.editing = false;
+      };
+
+      vm.loadStudents();
+    });
+  </script>
+</body>
+</html>
