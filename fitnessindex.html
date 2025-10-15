@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en" ng-app="fitnessApp">
+<head>
+  <meta charset="utf-8" />
+  <title>Fitness Tracker</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.8.2/angular.min.js"></script>
+
+  <style>
+    body { font-family: 'Segoe UI', sans-serif; background-color: #f0f4f8; margin: 20px auto; max-width: 900px; }
+    h1 { text-align: center; color: #2b6cb0; }
+    .card { background: #fff; border: 1px solid #ddd; border-radius: 10px; padding: 16px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    input, textarea { padding: 8px; margin: 4px; border-radius: 5px; border: 1px solid #ccc; }
+    button { padding: 8px 12px; border: none; border-radius: 5px; cursor: pointer; }
+    button.add { background-color: #38a169; color: #fff; }
+    button.edit { background-color: #3182ce; color: #fff; }
+    button.delete { background-color: #e53e3e; color: #fff; }
+    button.reset { background-color: #718096; color: #fff; }
+    .row { display: flex; flex-wrap: wrap; align-items: center; }
+    .workout-item { display: flex; justify-content: space-between; border-bottom: 1px solid #eee; padding: 8px 0; }
+    .small { font-size: 0.9em; color: #666; }
+  </style>
+</head>
+
+<body ng-controller="MainCtrl as vm">
+
+  <h1>Fitness Tracker</h1>
+
+  <div class="card">
+    <h3>{{ vm.editing ? 'Edit Workout' : 'Add Workout' }}</h3>
+    <form ng-submit="vm.saveWorkout()">
+      <div class="row">
+        <input placeholder="Activity" ng-model="vm.form.activity" required />
+        <input type="number" placeholder="Duration (min)" ng-model="vm.form.duration" required />
+        <input type="number" placeholder="Calories" ng-model="vm.form.calories" />
+        <input type="date" ng-model="vm.form.date" />
+      </div>
+      <textarea placeholder="Notes..." ng-model="vm.form.notes" style="width:100%;"></textarea><br>
+      <button type="submit" ng-class="vm.editing ? 'edit' : 'add'">{{ vm.editing ? 'Update' : 'Add' }}</button>
+      <button type="button" class="reset" ng-click="vm.resetForm()">Reset</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h3>Workout History ({{ vm.workouts.length }})</h3>
+    <div ng-if="vm.loading">Loading...</div>
+    <div ng-if="!vm.loading && vm.workouts.length === 0">No workouts found.</div>
+
+    <workout-card ng-repeat="w in vm.workouts | orderBy:'-date' | caloriesFilter:vm.calorieLimit"
+                  data="w" on-edit="vm.editWorkout(w)" on-delete="vm.deleteWorkout(w)">
+    </workout-card>
+  </div>
+
+  <script>
+    const app = angular.module('fitnessApp', []);
+
+    app.constant('API_URL', 'http://localhost:3000/api/workouts');
+
+    app.factory('WorkoutFactory', function($http, API_URL) {
+      return {
+        getAll: () => $http.get(API_URL),
+        create: (data) => $http.post(API_URL, data),
+        update: (id, data) => $http.put(API_URL + '/' + id, data),
+        remove: (id) => $http.delete(API_URL + '/' + id)
+      };
+    });
+
+    app.service('WorkoutService', function(WorkoutFactory) {
+      this.getWorkouts = () => WorkoutFactory.getAll();
+      this.addWorkout = (data) => WorkoutFactory.create(data);
+      this.updateWorkout = (id, data) => WorkoutFactory.update(id, data);
+      this.deleteWorkout = (id) => WorkoutFactory.remove(id);
+    });
+
+
+    app.filter('caloriesFilter', function() {
+      return function(workouts, minCalories) {
+        if (!minCalories) return workouts;
+        return workouts.filter(w => w.calories >= minCalories);
+      };
+    });
+
+    app.directive('workoutCard', function() {
+      return {
+        restrict: 'E',
+        scope: { data: '=', onEdit: '&', onDelete: '&' },
+        template: `
+          <div class="workout-item">
+            <div>
+              <strong>{{ data.activity }}</strong> - {{ data.duration }} mins  
+              <div class="small">
+                {{ data.date | date:'MMM d, y' }} • {{ data.calories || 0 }} cal
+                <br>Notes: {{ data.notes || '-' }}
+              </div>
+            </div>
+            <div>
+              <button class="edit" ng-click="onEdit({w: data})">Edit</button>
+              <button class="delete" ng-click="onDelete({w: data})">Delete</button>
+            </div>
+          </div>
+        `
+      };
+    });
+
+    app.controller('MainCtrl', function(WorkoutService) {
+      const vm = this;
+      vm.workouts = [];
+      vm.form = {};
+      vm.editing = false;
+      vm.loading = false;
+
+      vm.loadWorkouts = function() {
+        vm.loading = true;
+        WorkoutService.getWorkouts()
+          .then(res => vm.workouts = res.data)
+          .catch(err => console.error('Load failed', err))
+          .finally(() => vm.loading = false);
+      };
+
+      vm.saveWorkout = function() {
+        if (vm.editing && vm.form._id) {
+          WorkoutService.updateWorkout(vm.form._id, vm.form)
+            .then(res => {
+              const i = vm.workouts.findIndex(x => x._id === res.data._id);
+              if (i !== -1) vm.workouts[i] = res.data;
+              vm.resetForm();
+            });
+        } else {
+          WorkoutService.addWorkout(vm.form)
+            .then(res => {
+              vm.workouts.unshift(res.data);
+              vm.resetForm();
+            });
+        }
+      };
+
+      
+      vm.editWorkout = function(w) {
+        vm.form = angular.copy(w);
+        vm.editing = true;
+      };
+
+      
+      vm.deleteWorkout = function(w) {
+        if (!confirm('Delete ' + w.activity + '?')) return;
+        WorkoutService.deleteWorkout(w._id)
+          .then(() => vm.workouts = vm.workouts.filter(x => x._id !== w._id));
+      };
+
+      
+      vm.resetForm = function() {
+        vm.form = {};
+        vm.editing = false;
+      };
+
+      vm.loadWorkouts();
+    });
+  </script>
+</body>
+</html>
