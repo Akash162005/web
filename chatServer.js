@@ -1,53 +1,58 @@
-const express = require("express");
-const http = require("http");
-const mongoose = require("mongoose");
-const cors = require("cors");
-const path = require("path");
+const express = require('express');
+const http = require('http');
+const socketIo = require('socket.io');
+const mongoose = require('mongoose');
+const bodyParser = require('body-parser');
+const cors = require('cors');
 
 const app = express();
 const server = http.createServer(app);
-const io = require("socket.io")(server);
+const io = socketIo(server);
 
 app.use(cors());
-app.use(express.static("public"));
-app.use(express.json());
+app.use(bodyParser.json());
+app.use(express.static(__dirname));
 
-mongoose.connect("mongodb://127.0.0.1:27017/chatdb", {
+mongoose.connect('mongodb://127.0.0.1:27017/chatdb', {
   useNewUrlParser: true,
   useUnifiedTopology: true
-}).then(() => console.log("Connected to MongoDB"))
-  .catch(err => console.error(err));
+})
+.then(() => console.log("MongoDB connected"))
+.catch(err => console.log(err));
 
-const MessageSchema = new mongoose.Schema({
+const messageSchema = new mongoose.Schema({
   name: String,
   text: String,
   time: { type: Date, default: Date.now }
 });
-const Message = mongoose.model("Message", MessageSchema);
 
+const Message = mongoose.model('Message', messageSchema);
 
-app.get("/api/messages", async (req, res) => {
-  const messages = await Message.find().sort({ time: 1 }).limit(100);
-  res.json(messages);
+app.get('/api/messages', async (req, res) => {
+  try {
+    const messages = await Message.find().sort({ time: 1 });
+    res.json(messages);
+  } catch (err) {
+    res.status(500).send(err);
+  }
 });
 
+io.on('connection', socket => {
+  console.log('New user connected');
 
-io.on("connection", async (socket) => {
-  console.log("User connected");
-
-  const oldMessages = await Message.find().sort({ time: 1 }).limit(100);
-  socket.emit("history", oldMessages);
-
-  socket.on("chat message", async (msg) => {
-    const newMsg = new Message(msg);
-    await newMsg.save();
-    io.emit("chat message", newMsg); 
+  Message.find().sort({ time: 1 }).then(msgs => {
+    socket.emit('history', msgs);
+  });
+  socket.on('chat message', async msg => {
+    const newMessage = new Message(msg);
+    await newMessage.save();
+    io.emit('chat message', newMessage); // broadcast to all clients
   });
 
-  socket.on("disconnect", () => {
-    console.log("User disconnected");
+  socket.on('disconnect', () => {
+    console.log('User disconnected');
   });
 });
 
 const PORT = 3000;
-server.listen(PORT, () => console.log(`Server running at http://localhost:${PORT}`));
+server.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
