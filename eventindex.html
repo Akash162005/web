@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en" ng-app="eventApp">
+<head>
+  <meta charset="UTF-8">
+  <title>Event Management</title>
+  <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.8.3/angular.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f8f9fa;
+      display: flex;
+      justify-content: center;
+      padding: 40px;
+    }
+    .container {
+      width: 500px;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
+    input, textarea {
+      width: 100%;
+      padding: 8px;
+      margin: 5px 0;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+    }
+    button {
+      background: #007bff;
+      color: white;
+      border: none;
+      padding: 10px;
+      border-radius: 5px;
+      cursor: pointer;
+      width: 100%;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+    .event {
+      border-bottom: 1px solid #ddd;
+      padding: 10px 0;
+    }
+    .event h3 { margin: 0; }
+    .delete-btn {
+      background: #dc3545;
+      margin-top: 5px;
+    }
+  </style>
+</head>
+<body ng-controller="EventController as ctrl">
+
+  <div class="container">
+    <h2>Event Management</h2>
+
+    <form ng-submit="ctrl.addEvent()">
+      <input type="text" ng-model="ctrl.newEvent.name" placeholder="Event Name" required>
+      <input type="date" ng-model="ctrl.newEvent.date" required>
+      <input type="text" ng-model="ctrl.newEvent.location" placeholder="Location" required>
+      <textarea ng-model="ctrl.newEvent.description" placeholder="Description"></textarea>
+      <button type="submit">Add Event</button>
+    </form>
+
+    <hr>
+
+    <h3>All Events</h3>
+    <div class="event" ng-repeat="event in ctrl.events | orderBy:'date'">
+      <h3>{{event.name}}</h3>
+      <p><strong>Date:</strong> {{event.date}}</p>
+      <p><strong>Location:</strong> {{event.location}}</p>
+      <p>{{event.description}}</p>
+      <button class="delete-btn" ng-click="ctrl.deleteEvent(event._id)">Delete</button>
+    </div>
+  </div>
+
+  <script>
+    const app = angular.module("eventApp", []);
+
+    app.factory("EventService", function($http) {
+      const API_URL = "http://localhost:5000/api/events";
+      return {
+        getAll: () => $http.get(API_URL),
+        create: (data) => $http.post(API_URL, data),
+        remove: (id) => $http.delete(API_URL + "/" + id)
+      };
+    });
+
+    app.controller("EventController", function(EventService) {
+      const vm = this;
+      vm.events = [];
+      vm.newEvent = {};
+
+      vm.loadEvents = function() {
+        EventService.getAll().then(res => vm.events = res.data);
+      };
+
+      vm.addEvent = function() {
+        EventService.create(vm.newEvent).then(() => {
+          vm.newEvent = {};
+          vm.loadEvents();
+        });
+      };
+
+      vm.deleteEvent = function(id) {
+        EventService.remove(id).then(() => vm.loadEvents());
+      };
+
+      vm.loadEvents();
+    });
+  </script>
+</body>
+</html>
