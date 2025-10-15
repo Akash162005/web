@@ -48,6 +48,7 @@
       <button class="btn-danger" ng-click="deleteOrder(o._id)">Delete</button>
     </div>
 
+    <highlight-text text="Welcome to Fashion Shop!"></highlight-text>
   </main>
 
   <footer>
@@ -83,7 +84,14 @@
       };
     });
 
-   
+    // ---- Custom Directive ----
+    app.directive('highlightText', function() {
+      return {
+        restrict: 'E',
+        scope: { text: '@' },
+        template: '<h3 style="color: #28a745">{{text}}</h3>'
+      };
+    });
 
     // ---- Controller ----
     app.controller('ctrl', function($scope, OrderService, UtilsFactory) {
