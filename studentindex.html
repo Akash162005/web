@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en" ng-app="studentApp">
+<head>
+  <meta charset="utf-8" />
+  <title>Student Dashboard</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+
+  <!-- AngularJS -->
+  <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.8.2/angular.min.js"></script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px auto;
+      max-width: 900px;
+      background-color: #f8f9fa;
+      color: #333;
+    }
+    h1 {
+      text-align: center;
+      color: #2b6cb0;
+    }
+    .card {
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    input {
+      padding: 6px 8px;
+      margin: 4px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+    }
+    button {
+      padding: 6px 10px;
+      margin: 4px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button.add { background-color: #38a169; color: #fff; }
+    button.edit { background-color: #3182ce; color: #fff; }
+    button.delete { background-color: #e53e3e; color: #fff; }
+    button.reset { background-color: #718096; color: #fff; }
+    .row { display: flex; flex-wrap: wrap; align-items: center; }
+    .student-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #eee; }
+    .student-email { font-size: 0.9em; color: #555; }
+  </style>
+</head>
+
+<body ng-controller="vm as MainCtrl">
+
+  <h1>🎓 Student Dashboard</h1>
+
+  <div class="card">
+    <h3>{{ vm.editing ? 'Edit Student' : 'Add New Student' }}</h3>
+    <form ng-submit="vm.saveStudent()">
+      <div class="row">
+        <input placeholder="Name" ng-model="vm.form.name" required />
+        <input placeholder="Reg No" ng-model="vm.form.regNo" required />
+        <input placeholder="Class" ng-model="vm.form.className" />
+        <input placeholder="Email" ng-model="vm.form.email" />
+        <input type="number" placeholder="Age" ng-model="vm.form.age" />
+        <button type="submit" ng-class="vm.editing ? 'edit' : 'add'">
+          {{ vm.editing ? 'Update' : 'Add' }}
+        </button>
+        <button type="button" class="reset" ng-click="vm.resetForm()">Reset</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="card">
+    <h3>All Students ({{ vm.students.length }})</h3>
+    <div ng-if="vm.loading">Loading...</div>
+    <div ng-if="!vm.loading && vm.students.length === 0">No students found.</div>
+
+    <student-card ng-repeat="s in vm.students | orderBy:'name'" data="s" on-edit="vm.editStudent(s)" on-delete="vm.deleteStudent(s)"></student-card>
+  </div>
+
+  <script>
+    const app = angular.module('studentApp', []);
+
+    app.constant('API_URL', 'http://localhost:3000/api/students');
+
+    app.factory('StudentFactory', function($http, API_URL) {
+      return {
+        getAll: () => $http.get(API_URL),
+        create: (data) => $http.post(API_URL, data),
+        update: (id, data) => $http.put(API_URL + '/' + id, data),
+        remove: (id) => $http.delete(API_URL + '/' + id)
+      };
+    });
+
+    app.service('StudentService', function(StudentFactory) {
+      this.getStudents = () => StudentFactory.getAll();
+      this.addStudent = (data) => StudentFactory.create(data);
+      this.updateStudent = (id, data) => StudentFactory.update(id, data);
+      this.deleteStudent = (id) => StudentFactory.remove(id);
+    });
+
+    app.directive('studentCard', function() {
+      return {
+        restrict: 'E',
+        scope: {
+          data: '=',
+          onEdit: '&',
+          onDelete: '&'
+        },
+        template: `
+          <div class="student-item">
+            <div>
+              <strong>{{ data.name }}</strong> — {{ data.regNo }}
+              <div class="student-email">
+                {{ data.className || '-' }} • {{ data.email || 'No Email' }} • Age: {{ data.age || '-' }}
+              </div>
+            </div>
+            <div>
+              <button class="edit" ng-click="onEdit({s: data})">Edit</button>
+              <button class="delete" ng-click="onDelete({s: data})">Delete</button>
+            </div>
+          </div>
+        `
+      };
+    });
+    
+    app.controller('MainCtrl', function(StudentService) {
+      const vm = this;
+      vm.students = [];
+      vm.form = {};
+      vm.editing = false;
+      vm.loading = false;
+
+      vm.loadStudents = function() {
+        vm.loading = true;
+        StudentService.getStudents()
+          .then(res => vm.students = res.data)
+          .catch(err => console.error('Load failed:', err))
+          .finally(() => vm.loading = false);
+      };
+
+      // Save or update
+      vm.saveStudent = function() {
+        if (vm.editing && vm.form._id) {
+          StudentService.updateStudent(vm.form._id, vm.form)
+            .then(res => {
+              const i = vm.students.findIndex(x => x._id === res.data._id);
+              if (i !== -1) vm.students[i] = res.data;
+              vm.resetForm();
+            })
+            .catch(() => alert('Update failed!'));
+        } else {
+          StudentService.addStudent(vm.form)
+            .then(res => {
+              vm.students.unshift(res.data);
+              vm.resetForm();
+            })
+            .catch(() => alert('Create failed!'));
+        }
+      };
+
+      vm.editStudent = function(s) {
+        vm.form = angular.copy(s);
+        vm.editing = true;
+      };
+
+      vm.deleteStudent = function(s) {
+        if (!confirm('Delete ' + s.name + '?')) return;
+        StudentService.deleteStudent(s._id)
+          .then(() => vm.students = vm.students.filter(x => x._id !== s._id))
+          .catch(() => alert('Delete failed!'));
+      };
+
+      vm.resetForm = function() {
+        vm.form = {};
+        vm.editing = false;
+      };
+
+      // Initial load
+      vm.loadStudents();
+    });
+  </script>
+</body>
+</html>
